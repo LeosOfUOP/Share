@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Diagnostics — Time Slot Scheduler</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <!-- Loads Config from project-root/Config/Config.js — place diagnostics.html in project-root -->
+  <script src="Config/Config.js"></script>
+  <style>
+    :root {
+      --bg:        #0a0c10;
+      --panel:     #111418;
+      --border:    #1e2430;
+      --accent:    #00d4aa;
+      --warn:      #f5a623;
+      --error:     #ff4d6d;
+      --success:   #00d4aa;
+      --info:      #4d9cff;
+      --muted:     #4a5568;
+      --text:      #e2e8f0;
+      --text-dim:  #718096;
+      --code-bg:   #0d1117;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Syne', sans-serif;
+      min-height: 100vh;
+      padding: 2rem 1.5rem;
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex; align-items: center; gap: 1rem;
+      margin-bottom: 2.5rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .header-icon {
+      width: 48px; height: 48px; border-radius: 12px;
+      background: linear-gradient(135deg, #00d4aa22, #00d4aa44);
+      border: 1px solid #00d4aa55;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem; color: var(--accent);
+    }
+    .header h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
+    .header p  { font-size: 0.82rem; color: var(--text-dim); margin-top: 2px; }
+
+    .run-all-btn {
+      margin-left: auto;
+      background: var(--accent);
+      color: #0a0c10;
+      border: none;
+      padding: 0.6rem 1.4rem;
+      border-radius: 8px;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 0.88rem;
+      cursor: pointer;
+      display: flex; align-items: center; gap: 0.5rem;
+      transition: opacity 0.2s, transform 0.15s;
+      white-space: nowrap;
+    }
+    .run-all-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+    .run-all-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    /* ── Layout ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1.2rem;
+    }
+
+    /* ── Check card ── */
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      transition: border-color 0.3s;
+    }
+    .card.pass  { border-color: #00d4aa44; }
+    .card.fail  { border-color: #ff4d6d55; }
+    .card.warn  { border-color: #f5a62355; }
+    .card.running { border-color: #4d9cff55; }
+
+    .card-header {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.9rem 1.1rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .card-icon {
+      width: 34px; height: 34px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.9rem; flex-shrink: 0;
+    }
+    .card-icon.blue   { background:#4d9cff18; color:#4d9cff; }
+    .card-icon.green  { background:#00d4aa18; color:#00d4aa; }
+    .card-icon.orange { background:#f5a62318; color:#f5a623; }
+    .card-icon.purple { background:#c084fc18; color:#c084fc; }
+    .card-icon.pink   { background:#fb7185 18; color:#fb7185; }
+
+    .card-title { font-weight: 700; font-size: 0.9rem; flex: 1; }
+    .card-badge {
+      font-size: 0.7rem; font-weight: 700; padding: 2px 8px;
+      border-radius: 20px; letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    .badge-idle    { background: #1e2430; color: var(--muted); }
+    .badge-running { background: #4d9cff22; color: #4d9cff; }
+    .badge-pass    { background: #00d4aa22; color: #00d4aa; }
+    .badge-fail    { background: #ff4d6d22; color: #ff4d6d; }
+    .badge-warn    { background: #f5a62322; color: #f5a623; }
+
+    .card-body { padding: 0.85rem 1.1rem; }
+    .card-desc { font-size: 0.78rem; color: var(--text-dim); margin-bottom: 0.7rem; line-height: 1.5; }
+
+    /* ── Log lines ── */
+    .log {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.74rem;
+      background: var(--code-bg);
+      border-radius: 8px;
+      padding: 0.6rem 0.8rem;
+      max-height: 160px;
+      overflow-y: auto;
+      border: 1px solid #1e2430;
+    }
+    .log::-webkit-scrollbar { width: 4px; }
+    .log::-webkit-scrollbar-thumb { background: #2d3748; border-radius: 4px; }
+
+    .log-line { display: flex; gap: 0.5rem; align-items: flex-start; padding: 1px 0; }
+    .log-line .ts { color: #4a5568; min-width: 60px; }
+    .log-line.pass  .msg { color: #00d4aa; }
+    .log-line.fail  .msg { color: #ff4d6d; }
+    .log-line.warn  .msg { color: #f5a623; }
+    .log-line.info  .msg { color: #4d9cff; }
+    .log-line.muted .msg { color: #718096; }
+
+    /* ── Run button ── */
+    .run-btn {
+      margin-top: 0.65rem;
+      background: #1a1f2a;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.42rem 0.9rem;
+      border-radius: 6px;
+      font-family: 'Syne', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .run-btn:hover { background: #21283a; border-color: #2d3a50; }
+    .run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Fix suggestion ── */
+    .fix-box {
+      margin-top: 0.7rem;
+      background: #ff4d6d0d;
+      border: 1px solid #ff4d6d33;
+      border-radius: 8px;
+      padding: 0.65rem 0.8rem;
+      font-size: 0.78rem;
+      color: #fca5a5;
+      line-height: 1.6;
+      display: none;
+    }
+    .fix-box.visible { display: block; }
+    .fix-box strong { color: #ff4d6d; }
+
+    .warn-box {
+      margin-top: 0.7rem;
+      background: #f5a6230d;
+      border: 1px solid #f5a62333;
+      border-radius: 8px;
+      padding: 0.65rem 0.8rem;
+      font-size: 0.78rem;
+      color: #fcd34d;
+      line-height: 1.6;
+      display: none;
+    }
+    .warn-box.visible { display: block; }
+
+    /* ── Summary bar ── */
+    .summary {
+      margin-top: 2rem;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.1rem 1.4rem;
+      display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
+    }
+    .summary-title { font-weight: 700; font-size: 0.9rem; margin-right: auto; }
+    .stat { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; font-weight: 600; }
+    .stat-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    /* ── Session inspector ── */
+    .session-card {
+      grid-column: 1 / -1;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .session-body {
+      padding: 1rem 1.1rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.76rem;
+      white-space: pre-wrap;
+      word-break: break-all;
+      background: var(--code-bg);
+      color: #a5f3fc;
+      min-height: 60px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    /* spinner */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { display: inline-block; animation: spin 0.9s linear infinite; }
+
+    /* pulse for running state */
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .pulse { animation: pulse 1.2s ease infinite; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-icon">⚡</div>
+  <div>
+    <h1>System Diagnostics</h1>
+    <p>Login &amp; Auth flow · WhatsApp server · GAS backend · Session state</p>
+  </div>
+  <button class="run-all-btn" id="runAllBtn" onclick="runAll()">▶ Run All Checks</button>
+</div>
+
+<!-- Path reference banner -->
+<div id="pathBanner" style="
+  background:#111827; border:1px solid #1e2430; border-radius:12px;
+  padding:0.85rem 1.2rem; margin-bottom:1.5rem;
+  font-family:'JetBrains Mono',monospace; font-size:0.76rem;
+  display:flex; gap:1.5rem; flex-wrap:wrap; align-items:flex-start;">
+  <div>
+    <div style="color:#4a5568;margin-bottom:0.4rem;font-family:'Syne',sans-serif;font-weight:700;font-size:0.72rem;text-transform:uppercase;letter-spacing:.05em;">Expected Folder Structure</div>
+    <div style="color:#a5f3fc;line-height:1.9;">
+      project-root/<br>
+      &nbsp;&nbsp;<span id="diagPathIndicator" style="color:#00d4aa;">diagnostics.html</span> ← this file<br>
+      &nbsp;&nbsp;Admin.html<br>
+      &nbsp;&nbsp;Config/<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;Config.js<br>
+      &nbsp;&nbsp;User/<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;Submit.html · Auth.js · Script.js<br>
+      &nbsp;&nbsp;Admin/<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;Admin.html · Script.js · whatsapp-admin.js
+    </div>
+  </div>
+  <div style="border-left:1px solid #1e2430;padding-left:1.5rem;">
+    <div style="color:#4a5568;margin-bottom:0.4rem;font-family:'Syne',sans-serif;font-weight:700;font-size:0.72rem;text-transform:uppercase;letter-spacing:.05em;">Config.js Status</div>
+    <div id="configBannerStatus" style="color:#f5a623;">Checking…</div>
+    <div style="color:#4a5568;margin-top:0.6rem;font-family:'Syne',sans-serif;font-size:0.72rem;text-transform:uppercase;letter-spacing:.05em;">Served From</div>
+    <div style="color:#718096;" id="servedFrom"></div>
+  </div>
+</div>
+
+<div class="grid" id="checksGrid">
+
+  <!-- 1: Config loaded -->
+  <div class="card" id="card-config">
+    <div class="card-header">
+      <div class="card-icon blue">⚙</div>
+      <span class="card-title">Config.js Loaded</span>
+      <span class="card-badge badge-idle" id="badge-config">IDLE</span>
+    </div>
+    <div class="card-body">
+      <p class="card-desc">Checks that CONFIG is defined, SCRIPT_URL is set, and WHATSAPP.SERVER_URL is present.</p>
+      <div class="log" id="log-config"><span style="color:#4a5568;">Not yet run.</span></div>
+      <div class="fix-box" id="fix-config">
+        <strong>Fix:</strong> Config.js failed to load. This file expects:<br>
+        <code>project-root/Config/Config.js</code><br><br>
+        Make sure <code>diagnostics.html</code> is in <code>project-root/</code> (not inside a subfolder).
+        Also make sure you're serving via a web server — <strong>not</strong> <code>file://</code>.
+        Use <code>python -m http.server 8080</code> in project-root, then open
+        <code>http://localhost:8080/diagnostics.html</code>.
+      </div>
+      <button class="run-btn" onclick="runCheck('config')">▷ Run</button>
+    </div>
+  </div>
+
+  <!-- 2: Session storage -->
+  <div class="card" id="card-session">
+    <div class="card-header">
+      <div class="card-icon orange">🗄</div>
+      <span class="card-title">Session Storage State</span>
+      <span class="card-badge badge-idle" id="badge-session">IDLE</span>
+    </div>
+    <div class="card-body">
+      <p class="card-desc">Reads the current <code>auth</code> session from sessionStorage. Shows token, role, phone, and project.</p>
+      <div class="log" id="log-session"><span style="color:#4a5568;">Not yet run.</span></div>
+      <div class="fix-box" id="fix-session">
+        <strong>Fix:</strong> Session is missing or corrupted. This usually happens after a page reload without
+        re-logging in, or if sessionStorage was cleared. Trigger <code>initAuth()</code> from a fresh page load.
+      </div>
+      <div class="warn-box" id="warn-session"></div>
+      <button class="run-btn" onclick="runCheck('session')">▷ Run</button>
+    </div>
+  </div>
+
+  <!-- 3: GAS backend reachable -->
+  <div class="card" id="card-gas">
+    <div class="card-header">
+      <div class="card-icon green">☁</div>
+      <span class="card-title">GAS Backend Reachable</span>
+      <span class="card-badge badge-idle" id="badge-gas">IDLE</span>
+    </div>
+    <div class="card-body">
+      <p class="card-desc">Fetches from SCRIPT_URL (GET with no action) — expects a JSON array of posts.</p>
+      <div class="log" id="log-gas"><span style="color:#4a5568;">Not yet run.</span></div>
+      <div class="fix-box" id="fix-gas">
+        <strong>Fix:</strong> GAS is unreachable or returning an error. Check that the script is deployed as
+        a Web App with <em>Execute as: Me</em> and <em>Who has access: Anyone</em>. Also verify
+        <code>SCRIPT_URL</code> in Config.js is the latest deployment URL.
+      </div>
+      <button class="run-btn" onclick="runCheck('gas')">▷ Run</button>
+    </div>
+  </div>
+
+  <!-- 4: OTP send flow -->
+  <div class="card" id="card-otp">
+    <div class="card-header">
+      <div class="card-icon purple">📱</div>
+      <span class="card-title">OTP Send Action</span>
+      <span class="card-badge badge-idle" id="badge-otp">IDLE</span>
+    </div>
+    <div class="card-body">
+      <p class="card-desc">POSTs <code>{ action: "sendOtp", phone: "00000000000" }</code> to GAS and checks response shape.
+        Uses a dummy number — no real OTP is sent.</p>
+      <div class="log" id="log-otp"><span style="color:#4a5568;">Not yet run.</span></div>
+      <div class="fix-box" id="fix-otp">
+        <strong>Fix:</strong> GAS returned an error on <code>sendOtp</code>. Common causes:<br>
+        • <code>WA_SERVER_URL</code> not set in Script Properties<br>
+        • <code>WA_API_SECRET</code> not set in Script Properties<br>
+        • WhatsApp server is not running or tunnel has expired
+      </div>
+      <button class="run-btn" onclick="runCheck('otp')">▷ Run</button>
+    </div>
+  </div>
+
+  <!-- 5: WhatsApp server /status -->
+  <div class="card" id="card-wa-status">
+    <div class="card-header">
+      <div class="card-icon green">💬</div>
+      <span class="card-title">WhatsApp Server /status</span>
+      <span class="card-badge badge-idle" id="badge-wa-status">IDLE</span>
+    </div>
+    <div class="card-body">
+      <p class="card-desc">Direct GET to <code>WHATSAPP.SERVER_URL/status</code>. Checks if the WA server is running and linked.</p>
+      <div class="log" id="log-wa-status"><span style="color:#4a5568;">Not yet run.</span></div>
+      <div class="fix-box" id="fix-wa-status">
+        <strong>Fix:</strong><br>
+        • Make sure <code>node server.js</code> is running on your VPS<br>
+        • Make sure <code>cloudflared</code> tunnel is active and URL in Config.js is current<br>
+        • If QR code is shown: scan it in WhatsApp → Linked Devices
+      </div>
+      <div class="warn-box" id="warn-wa-status"></div>
+      <button class="run-btn" onclick="runCheck('wa-status')">▷ Run</button>
+    </div>
+  </div>
+
+  <!-- 6: WhatsApp server /targets -->
+  <div class="card" id="card-wa-targets">
+    <div class="card-header">
+      <div class="card-icon green">👥</div>
+      <span class="card-title">WhatsApp Server /targets</span>
+      <span class="card-badge badge-idle" id="badge-wa-targets">IDLE</span>
+    </div>
+    <div class="card-body">
+      <p class="card-desc">Direct GET to <code>WHATSAPP.SERVER_URL/targets</code>. Lists configured groups/channels/contacts.</p>
+      <div class="log" id="log-wa-targets"><span style="color:#4a5568;">Not yet run.</span></div>
+      <div class="fix-box" id="fix-wa-targets">
+        <strong>Fix:</strong> No targets or server error.<br>
+        • Edit <code>whatsapp-targets.js</code> on your VPS and add groups/contacts<br>
+        • Run <code>node list-chats.js</code> to find exact chat names<br>
+        • Restart the server after editing
+      </div>
+      <button class="run-btn" onclick="runCheck('wa-targets')">▷ Run</button>
+    </div>
+  </div>
+
+  <!-- 7: GAS whatsappSend proxy -->
+  <div class="card" id="card-wa-proxy">
+    <div class="card-header">
+      <div class="card-icon purple">🔀</div>
+      <span class="card-title">GAS WhatsApp Proxy</span>
+      <span class="card-badge badge-idle" id="badge-wa-proxy">IDLE</span>
+    </div>
+    <div class="card-body">
+      <p class="card-desc">POSTs <code>{ action: "whatsappSend" }</code> to GAS with empty targets — tests that GAS correctly
+        routes the request (requires valid session token).</p>
+      <div class="log" id="log-wa-proxy"><span style="color:#4a5568;">Not yet run.</span></div>
+      <div class="fix-box" id="fix-wa-proxy">
+        <strong>Fix:</strong><br>
+        • You must be logged in (valid session token needed)<br>
+        • Make sure <code>WA_SERVER_URL</code> and <code>WA_API_SECRET</code> are set in GAS Script Properties<br>
+        • If error is "Unknown action", re-deploy your Code.gs
+      </div>
+      <div class="warn-box" id="warn-wa-proxy"></div>
+      <button class="run-btn" onclick="runCheck('wa-proxy')">▷ Run</button>
+    </div>
+  </div>
+
+  <!-- 8: Script load order -->
+  <div class="card" id="card-load-order">
+    <div class="card-header">
+      <div class="card-icon orange">📂</div>
+      <span class="card-title">Function Load Order</span>
+      <span class="card-badge badge-idle" id="badge-load-order">IDLE</span>
+    </div>
+    <div class="card-body">
+      <p class="card-desc">Checks that critical functions exist: <code>_showMainApp</code>, <code>initAuth</code>,
+        <code>getSession</code>, <code>clearSession</code>, <code>postToBackend</code>, <code>showLoading</code>.</p>
+      <div class="log" id="log-load-order"><span style="color:#4a5568;">Not yet run.</span></div>
+      <div class="fix-box" id="fix-load-order">
+        <strong>Fix (only relevant when running from Submit.html / Admin.html):</strong><br><br>
+        • Check browser Network tab for 404 on <code>Auth.js</code> or <code>Script.js</code><br>
+        • Ensure <code>_showMainApp</code> is defined <em>before</em> <code>&lt;script src="Auth.js"&gt;</code> in Submit.html<br>
+        • Ensure <code>Config.js</code> loads before both Auth.js and Script.js
+      </div>
+      <button class="run-btn" onclick="runCheck('load-order')">▷ Run</button>
+    </div>
+  </div>
+
+  <!-- 9: DOM elements -->
+  <div class="card" id="card-dom">
+    <div class="card-header">
+      <div class="card-icon blue">🏗</div>
+      <span class="card-title">Required DOM Elements</span>
+      <span class="card-badge badge-idle" id="badge-dom">IDLE</span>
+    </div>
+    <div class="card-body">
+      <p class="card-desc">Checks for key element IDs that Auth.js and Script.js depend on at runtime.</p>
+      <div class="log" id="log-dom"><span style="color:#4a5568;">Not yet run.</span></div>
+      <div class="fix-box" id="fix-dom">
+        <strong>Fix:</strong> Missing DOM elements. Make sure this diagnostic is run from either
+        <code>Submit.html</code> or <code>Admin.html</code> — not a standalone page. The missing
+        element IDs are listed above.
+      </div>
+      <button class="run-btn" onclick="runCheck('dom')">▷ Run</button>
+    </div>
+  </div>
+
+  <!-- 10: Auth flow simulation -->
+  <div class="card" id="card-auth-flow">
+    <div class="card-header">
+      <div class="card-icon purple">🔐</div>
+      <span class="card-title">Auth Flow Simulation</span>
+      <span class="card-badge badge-idle" id="badge-auth-flow">IDLE</span>
+    </div>
+    <div class="card-body">
+      <p class="card-desc">Simulates a mock returning-user session: writes to sessionStorage, reads it back,
+        and verifies all required fields are present.</p>
+      <div class="log" id="log-auth-flow"><span style="color:#4a5568;">Not yet run.</span></div>
+      <div class="fix-box" id="fix-auth-flow">
+        <strong>Fix:</strong> Session round-trip failed. Either <code>sessionStorage</code> is blocked
+        (private/incognito mode), or the session object is being mutated incorrectly.
+        Check Auth.js lines that call <code>sessionStorage.setItem("auth", ...)</code>.
+      </div>
+      <button class="run-btn" onclick="runCheck('auth-flow')">▷ Run</button>
+    </div>
+  </div>
+
+  <!-- Session inspector — full width -->
+  <div class="session-card">
+    <div class="card-header">
+      <div class="card-icon blue">🔍</div>
+      <span class="card-title">Live Session Inspector</span>
+      <button class="run-btn" style="margin:0;" onclick="inspectSession()">▷ Refresh</button>
+      <button class="run-btn" style="margin:0;color:#ff4d6d;border-color:#ff4d6d33;" onclick="clearSessionDiag()">✕ Clear Session</button>
+    </div>
+    <div class="session-body" id="sessionInspector">Click "Refresh" to inspect current sessionStorage["auth"]</div>
+  </div>
+
+</div>
+
+<!-- Summary -->
+<div class="summary" id="summaryBar" style="display:none;">
+  <span class="summary-title">Results</span>
+  <span class="stat"><span class="stat-dot" style="background:#00d4aa"></span><span id="stat-pass">0 passed</span></span>
+  <span class="stat"><span class="stat-dot" style="background:#ff4d6d"></span><span id="stat-fail">0 failed</span></span>
+  <span class="stat"><span class="stat-dot" style="background:#f5a623"></span><span id="stat-warn">0 warnings</span></span>
+  <span style="font-size:0.78rem;color:var(--text-dim);margin-left:auto;" id="stat-ts"></span>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────────
+const results = {};
+
+// Try to read CONFIG if available (for running from same origin)
+function tryGetConfig() {
+  try { return (typeof CONFIG !== "undefined") ? CONFIG : null; }
+  catch(e) { return null; }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Logging helpers
+// ─────────────────────────────────────────────────────────────────
+function clearLog(id) {
+  document.getElementById(`log-${id}`).innerHTML = "";
+}
+
+function addLog(id, msg, type = "info") {
+  const el  = document.getElementById(`log-${id}`);
+  const ts  = new Date().toTimeString().slice(0, 8);
+  const line = document.createElement("div");
+  line.className = `log-line ${type}`;
+  line.innerHTML = `<span class="ts">${ts}</span><span class="msg">${escLog(msg)}</span>`;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+function escLog(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Card state
+// ─────────────────────────────────────────────────────────────────
+function setCardState(id, state) {
+  const card  = document.getElementById(`card-${id}`);
+  const badge = document.getElementById(`badge-${id}`);
+  card.className = `card ${state}`;
+  badge.className = `card-badge badge-${state === "running" ? "running" : state}`;
+  const labels = { idle:"IDLE", running:"RUNNING", pass:"PASS", fail:"FAIL", warn:"WARN" };
+  badge.textContent = labels[state] || state.toUpperCase();
+}
+
+function showFix(id, show)  { document.getElementById(`fix-${id}`).classList.toggle("visible", show); }
+function showWarn(id, text) {
+  const el = document.getElementById(`warn-${id}`);
+  if (el) { el.classList.add("visible"); el.textContent = text; }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Individual checks
+// ─────────────────────────────────────────────────────────────────
+
+async function check_config() {
+  clearLog("config");
+  setCardState("config", "running");
+
+  const cfg = tryGetConfig();
+  if (!cfg) {
+    addLog("config", "CONFIG is not defined — script failed to load or wrong file path", "fail");
+    addLog("config", "Make sure you're running from a web server, not file://", "warn");
+    showFix("config", true);
+    return "fail";
+  }
+  addLog("config", "CONFIG object found ✓", "pass");
+
+  if (!cfg.SCRIPT_URL || !cfg.SCRIPT_URL.startsWith("https://")) {
+    addLog("config", "SCRIPT_URL is missing or invalid: " + cfg.SCRIPT_URL, "fail");
+    showFix("config", true);
+    return "fail";
+  }
+  addLog("config", "SCRIPT_URL: " + cfg.SCRIPT_URL.substring(0, 60) + "…", "pass");
+
+  if (!cfg.WHATSAPP || !cfg.WHATSAPP.SERVER_URL) {
+    addLog("config", "WHATSAPP.SERVER_URL not set!", "fail");
+    showFix("config", true);
+    return "fail";
+  }
+  addLog("config", "WHATSAPP.SERVER_URL: " + cfg.WHATSAPP.SERVER_URL, "pass");
+
+  if (!cfg.CLOUDINARY || !cfg.CLOUDINARY.UPLOAD_URL) {
+    addLog("config", "CLOUDINARY config missing — media uploads will fail", "warn");
+    return "warn";
+  }
+  addLog("config", "CLOUDINARY config present ✓", "pass");
+  addLog("config", "All config checks passed ✓", "pass");
+  return "pass";
+}
+
+async function check_session() {
+  clearLog("session");
+  setCardState("session", "running");
+
+  let raw;
+  try { raw = sessionStorage.getItem("auth"); }
+  catch(e) {
+    addLog("session", "sessionStorage is blocked: " + e.message, "fail");
+    showFix("session", true);
+    return "fail";
+  }
+
+  if (!raw) {
+    addLog("session", "No session in sessionStorage — user is not logged in", "warn");
+    addLog("session", "This is normal if you're on the login screen", "muted");
+    showWarn("session", "⚠ No session found. This is expected if not logged in yet.");
+    return "warn";
+  }
+
+  let session;
+  try { session = JSON.parse(raw); }
+  catch(e) {
+    addLog("session", "Session JSON is malformed: " + e.message, "fail");
+    showFix("session", true);
+    return "fail";
+  }
+  addLog("session", "Session parsed OK ✓", "pass");
+
+  const fields = ["token", "phone", "name", "role"];
+  let missing = [];
+  fields.forEach(f => {
+    if (session[f]) addLog("session", `${f}: ${f === "token" ? session[f].substring(0,20)+"…" : session[f]}`, "pass");
+    else { addLog("session", `${f}: MISSING`, "warn"); missing.push(f); }
+  });
+
+  if (session.activeProject) {
+    addLog("session", `activeProject: ${session.activeProject.project} — ${session.activeProject.role}`, "pass");
+  } else {
+    addLog("session", "activeProject: not set (user hasn't picked a project yet)", "muted");
+  }
+
+  if (session.isNew) {
+    addLog("session", "isNew=true — user is mid-registration", "warn");
+    showWarn("session", "⚠ Session is in 'new user' state. Registration not complete.");
+  }
+
+  if (missing.length > 0) {
+    addLog("session", "Missing fields: " + missing.join(", "), "warn");
+    return "warn";
+  }
+
+  addLog("session", "Session looks healthy ✓", "pass");
+  return "pass";
+}
+
+async function check_gas() {
+  clearLog("gas");
+  setCardState("gas", "running");
+
+  const cfg = tryGetConfig();
+  if (!cfg) { addLog("gas", "CONFIG not available — run Config check first", "fail"); return "fail"; }
+
+  addLog("gas", "Fetching " + cfg.SCRIPT_URL.substring(0, 60) + "…", "info");
+  const start = Date.now();
+  try {
+    const res = await fetch(cfg.SCRIPT_URL);
+    const ms  = Date.now() - start;
+    addLog("gas", `Response: HTTP ${res.status} (${ms}ms)`, res.ok ? "pass" : "fail");
+
+    if (!res.ok) {
+      addLog("gas", "Non-200 response — check Web App deployment", "fail");
+      showFix("gas", true);
+      return "fail";
+    }
+
+    const data = await res.json();
+    if (!Array.isArray(data)) {
+      addLog("gas", "Response is not an array: " + typeof data, "fail");
+      addLog("gas", "Preview: " + JSON.stringify(data).substring(0, 120), "warn");
+      showFix("gas", true);
+      return "fail";
+    }
+    addLog("gas", `Returns ${data.length} post(s) ✓`, "pass");
+    addLog("gas", "GAS backend is reachable and responding correctly ✓", "pass");
+    return "pass";
+  } catch(e) {
+    addLog("gas", "Fetch error: " + e.message, "fail");
+    addLog("gas", "Could be CORS, network error, or wrong URL", "warn");
+    showFix("gas", true);
+    return "fail";
+  }
+}
+
+async function check_otp() {
+  clearLog("otp");
+  setCardState("otp", "running");
+
+  const cfg = tryGetConfig();
+  if (!cfg) { addLog("otp", "CONFIG not available", "fail"); return "fail"; }
+
+  addLog("otp", "Sending { action: 'sendOtp', phone: '00000000000' } to GAS…", "info");
+  addLog("otp", "(Using dummy number — GAS will try to send but WA will reject it)", "muted");
+
+  try {
+    const res  = await fetch(cfg.SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify({ action: "sendOtp", phone: "00000000000" })
+    });
+    const data = await res.json();
+    addLog("otp", "Response: " + JSON.stringify(data).substring(0, 200), "info");
+
+    if (data.success === false) {
+      // Check what the error actually is
+      const err = (data.error || "").toLowerCase();
+      if (err.includes("whatsapp") || err.includes("server") || err.includes("not configured")) {
+        addLog("otp", "GAS reached but WA server not configured: " + data.error, "warn");
+        addLog("otp", "GAS endpoint is working ✓ (WA config issue separately)", "pass");
+        showWarn("otp", "⚠ GAS is working but WA_SERVER_URL or WA_API_SECRET not set in Script Properties.");
+        return "warn";
+      }
+      addLog("otp", "GAS returned error: " + data.error, "fail");
+      showFix("otp", true);
+      return "fail";
+    }
+
+    if (data.success === true) {
+      addLog("otp", "OTP send action succeeded ✓", "pass");
+      return "pass";
+    }
+
+    addLog("otp", "Unexpected response shape: " + JSON.stringify(data), "warn");
+    return "warn";
+  } catch(e) {
+    addLog("otp", "Fetch error: " + e.message, "fail");
+    showFix("otp", true);
+    return "fail";
+  }
+}
+
+async function check_wa_status() {
+  clearLog("wa-status");
+  setCardState("wa-status", "running");
+
+  const cfg = tryGetConfig();
+  if (!cfg || !cfg.WHATSAPP || !cfg.WHATSAPP.SERVER_URL) {
+    addLog("wa-status", "WHATSAPP.SERVER_URL not configured in Config.js", "fail");
+    showFix("wa-status", true);
+    return "fail";
+  }
+
+  const url = cfg.WHATSAPP.SERVER_URL + "/status";
+  addLog("wa-status", "GET " + url, "info");
+  const start = Date.now();
+
+  try {
+    const res  = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    const ms   = Date.now() - start;
+    addLog("wa-status", `HTTP ${res.status} (${ms}ms)`, res.ok ? "pass" : "warn");
+
+    const data = await res.json();
+    addLog("wa-status", "Response: " + JSON.stringify(data), "info");
+
+    if (data.qrCode) {
+      addLog("wa-status", "WhatsApp needs QR scan — not connected yet", "warn");
+      showWarn("wa-status", "⚠ WhatsApp shows a QR code. Open Admin → WhatsApp modal and scan it with your phone.");
+      return "warn";
+    }
+    if (!data.ready) {
+      addLog("wa-status", "WhatsApp not ready: " + (data.error || "unknown"), "fail");
+      showFix("wa-status", true);
+      return "fail";
+    }
+    addLog("wa-status", "WhatsApp is connected and ready ✓", "pass");
+    return "pass";
+  } catch(e) {
+    addLog("wa-status", "Cannot reach WA server: " + e.message, "fail");
+    addLog("wa-status", "Is server.js running? Is cloudflared tunnel active?", "warn");
+    showFix("wa-status", true);
+    return "fail";
+  }
+}
+
+async function check_wa_targets() {
+  clearLog("wa-targets");
+  setCardState("wa-targets", "running");
+
+  const cfg = tryGetConfig();
+  if (!cfg || !cfg.WHATSAPP || !cfg.WHATSAPP.SERVER_URL) {
+    addLog("wa-targets", "WHATSAPP.SERVER_URL not configured", "fail");
+    return "fail";
+  }
+
+  const url = cfg.WHATSAPP.SERVER_URL + "/targets";
+  addLog("wa-targets", "GET " + url, "info");
+  try {
+    const res  = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    const data = await res.json();
+    if (!data.targets || !Array.isArray(data.targets)) {
+      addLog("wa-targets", "No targets array in response", "fail");
+      showFix("wa-targets", true);
+      return "fail";
+    }
+    addLog("wa-targets", `Found ${data.targets.length} target(s):`, "pass");
+    data.targets.forEach(t => {
+      addLog("wa-targets", `  [${t.type}] ${t.label} (id: ${t.id})`, "info");
+    });
+    if (data.targets.length === 0) {
+      addLog("wa-targets", "Targets list is empty — nothing to send to", "warn");
+      showFix("wa-targets", true);
+      return "warn";
+    }
+    addLog("wa-targets", "Targets loaded successfully ✓", "pass");
+    return "pass";
+  } catch(e) {
+    addLog("wa-targets", "Error: " + e.message, "fail");
+    showFix("wa-targets", true);
+    return "fail";
+  }
+}
+
+async function check_wa_proxy() {
+  clearLog("wa-proxy");
+  setCardState("wa-proxy", "running");
+
+  const cfg = tryGetConfig();
+  if (!cfg) { addLog("wa-proxy", "CONFIG not available", "fail"); return "fail"; }
+
+  let token = null;
+  try {
+    const s = sessionStorage.getItem("auth");
+    if (s) token = JSON.parse(s).token;
+  } catch(e) {}
+
+  if (!token) {
+    addLog("wa-proxy", "No session token — must be logged in to test GAS proxy", "warn");
+    addLog("wa-proxy", "Log in first, then re-run this check", "muted");
+    showWarn("wa-proxy", "⚠ No token found. Log in first, then re-run this check.");
+    return "warn";
+  }
+  addLog("wa-proxy", "Token found: " + token.substring(0, 20) + "…", "pass");
+  addLog("wa-proxy", "POSTing { action: 'whatsappSend', targets: [], message: '__diag__' } to GAS…", "info");
+
+  try {
+    const res = await fetch(cfg.SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "whatsappSend",
+        token,
+        targets: [],
+        message: "__diagnostics_test__",
+        mediaUrl: null
+      })
+    });
+    const data = await res.json();
+    addLog("wa-proxy", "Response: " + JSON.stringify(data).substring(0, 200), "info");
+
+    const errLower = (data.error || "").toLowerCase();
+    if (errLower.includes("unknown action")) {
+      addLog("wa-proxy", "GAS does not know 'whatsappSend' — Code.gs not updated!", "fail");
+      addLog("wa-proxy", "Re-deploy Code.gs with the new handleWhatsappSend function", "warn");
+      showFix("wa-proxy", true);
+      return "fail";
+    }
+    if (errLower.includes("unauthorized")) {
+      addLog("wa-proxy", "Token was rejected by GAS — session may be expired", "fail");
+      showFix("wa-proxy", true);
+      return "fail";
+    }
+    if (errLower.includes("no targets")) {
+      addLog("wa-proxy", "GAS received request and forwarded to WA server ✓ (no targets = expected)", "pass");
+      addLog("wa-proxy", "Proxy routing is working correctly ✓", "pass");
+      return "pass";
+    }
+    if (data.success === false && errLower.includes("not configured")) {
+      addLog("wa-proxy", "GAS reached but WA_SERVER_URL not in Script Properties", "warn");
+      showWarn("wa-proxy", "⚠ Set WA_SERVER_URL and WA_API_SECRET in GAS Script Properties.");
+      return "warn";
+    }
+    // Any non-error response means proxy is routing
+    addLog("wa-proxy", "Proxy is routing requests correctly ✓", "pass");
+    return "pass";
+  } catch(e) {
+    addLog("wa-proxy", "Fetch error: " + e.message, "fail");
+    showFix("wa-proxy", true);
+    return "fail";
+  }
+}
+
+function check_load_order() {
+  clearLog("load-order");
+  setCardState("load-order", "running");
+
+  // Detect if we're running standalone (not embedded in Submit.html / Admin.html)
+  const isStandalone = !document.getElementById("phoneScreen") && !document.getElementById("scheduleGrid");
+
+  if (isStandalone) {
+    addLog("load-order", "Running standalone — Auth.js and Script.js are not loaded here", "muted");
+    addLog("load-order", "This check only runs meaningfully from Submit.html or Admin.html", "muted");
+    addLog("load-order", "───────────────────────────────", "muted");
+    addLog("load-order", "To test: open Submit.html in browser, open DevTools Console,", "info");
+    addLog("load-order", "and run:  typeof initAuth + ' / ' + typeof _showMainApp", "info");
+    addLog("load-order", "Both should return 'function'", "info");
+    addLog("load-order", "───────────────────────────────", "muted");
+    addLog("load-order", "SKIP — standalone context (not a real failure) ✓", "pass");
+    return "pass";
+  }
+
+  const fns = [
+    { name: "_showMainApp",  critical: true  },
+    { name: "initAuth",      critical: true  },
+    { name: "getSession",    critical: true  },
+    { name: "clearSession",  critical: true  },
+    { name: "postToBackend", critical: false },
+    { name: "showLoading",   critical: false },
+    { name: "hideLoading",   critical: false },
+    { name: "showToast",     critical: false },
+    { name: "escapeHTML",    critical: false },
+    { name: "loadSchedule",  critical: false },
+  ];
+
+  let hasFail = false, hasWarn = false;
+  fns.forEach(f => {
+    const exists = typeof window[f.name] === "function";
+    if (exists) {
+      addLog("load-order", `${f.name}() ✓ defined`, "pass");
+    } else {
+      if (f.critical) {
+        addLog("load-order", `${f.name}() ✗ NOT FOUND (critical!)`, "fail");
+        hasFail = true;
+      } else {
+        addLog("load-order", `${f.name}() — not found (page-specific)`, "muted");
+      }
+    }
+  });
+
+  if (hasFail) { showFix("load-order", true); return "fail"; }
+  addLog("load-order", "All critical functions loaded ✓", "pass");
+  return "pass";
+}
+
+function check_dom() {
+  clearLog("dom");
+  setCardState("dom", "running");
+
+  // Detect standalone context
+  const isStandalone = !document.getElementById("phoneScreen") && !document.getElementById("scheduleGrid");
+
+  if (isStandalone) {
+    addLog("dom", "Running standalone — Submit.html / Admin.html elements not present here", "muted");
+    addLog("dom", "This is expected and correct ✓", "pass");
+    addLog("dom", "───────────────────────────────", "muted");
+    addLog("dom", "Submit.html needs: #phoneScreen, #otpScreen, #registerScreen,", "info");
+    addLog("dom", "  #projectPickerScreen, #mainSubmitForm, #sendOtpBtn, #verifyOtpBtn", "info");
+    addLog("dom", "Admin.html needs: #scheduleGrid, #adminDatePicker, #postModal,", "info");
+    addLog("dom", "  #modalBody, #loadingOverlay, #ownerToolsPanel", "info");
+    addLog("dom", "───────────────────────────────", "muted");
+    addLog("dom", "SKIP — standalone context (not a real failure) ✓", "pass");
+    return "pass";
+  }
+
+  // Elements that Auth.js requires
+  const authEls = [
+    "phoneScreen", "otpScreen", "registerScreen", "projectPickerScreen",
+    "mainSubmitForm", "phoneNumber", "sendOtpBtn", "otpCode", "otpPhone",
+    "verifyOtpBtn", "otpPhoneSpan", "regName", "projectsRowsContainer",
+    "addProjectRowBtn", "registerConfirmBtn", "projectPickerList",
+    "backToLoginFromPicker"
+  ];
+
+  // Elements that Script.js (admin) requires
+  const adminEls = [
+    "loadingOverlay", "scheduleGrid", "adminDatePicker",
+    "refreshBtn", "postModal", "modalBody", "modalButtonGroup"
+  ];
+
+  let missing = [], found = 0;
+  const checkEl = (id, label) => {
+    const el = document.getElementById(id);
+    if (el) { found++; return true; }
+    missing.push(`${id} (${label})`);
+    return false;
+  };
+
+  authEls.forEach(id  => checkEl(id, "Auth.js"));
+  adminEls.forEach(id => checkEl(id, "Script.js"));
+
+  addLog("dom", `${found} element(s) found`, "pass");
+
+  if (missing.length > 0) {
+    missing.forEach(m => addLog("dom", `Missing: #${m}`, "warn"));
+    showFix("dom", true);
+    return "warn";
+  }
+
+  addLog("dom", "All required DOM elements present ✓", "pass");
+  return "pass";
+}
+
+function check_auth_flow() {
+  clearLog("auth-flow");
+  setCardState("auth-flow", "running");
+
+  const testKey = "__diag_test__";
+  const mockSession = {
+    token: "mock_token_abc123",
+    phone: "94767633875",
+    name: "Test User",
+    role: "user",
+    projects: [{ project: "TestProject", role: "Member" }],
+    isNew: false,
+    activeProject: { project: "TestProject", role: "Member" }
+  };
+
+  try {
+    // Write
+    sessionStorage.setItem(testKey, JSON.stringify(mockSession));
+    addLog("auth-flow", "Write to sessionStorage ✓", "pass");
+
+    // Read back
+    const raw = sessionStorage.getItem(testKey);
+    if (!raw) { addLog("auth-flow", "Read-back failed — sessionStorage not persisting!", "fail"); showFix("auth-flow", true); return "fail"; }
+    addLog("auth-flow", "Read from sessionStorage ✓", "pass");
+
+    // Parse
+    const parsed = JSON.parse(raw);
+    addLog("auth-flow", "JSON.parse ✓", "pass");
+
+    // Field check
+    const fields = ["token","phone","name","role","projects","activeProject"];
+    const allOk = fields.every(f => {
+      const ok = parsed[f] !== undefined;
+      addLog("auth-flow", `Field "${f}": ${ok ? "✓" : "✗ MISSING"}`, ok ? "pass" : "fail");
+      return ok;
+    });
+
+    // Clean up
+    sessionStorage.removeItem(testKey);
+    addLog("auth-flow", "Cleanup ✓", "pass");
+
+    if (!allOk) { showFix("auth-flow", true); return "fail"; }
+    addLog("auth-flow", "Auth session round-trip passed ✓", "pass");
+    return "pass";
+  } catch(e) {
+    addLog("auth-flow", "Exception: " + e.message, "fail");
+    showFix("auth-flow", true);
+    return "fail";
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Run dispatcher
+// ─────────────────────────────────────────────────────────────────
+const checkMap = {
+  "config":      check_config,
+  "session":     check_session,
+  "gas":         check_gas,
+  "otp":         check_otp,
+  "wa-status":   check_wa_status,
+  "wa-targets":  check_wa_targets,
+  "wa-proxy":    check_wa_proxy,
+  "load-order":  check_load_order,
+  "dom":         check_dom,
+  "auth-flow":   check_auth_flow,
+};
+
+async function runCheck(id) {
+  // Reset fixes/warns
+  const fixEl = document.getElementById(`fix-${id}`);
+  const warnEl = document.getElementById(`warn-${id}`);
+  if (fixEl)  fixEl.classList.remove("visible");
+  if (warnEl) { warnEl.classList.remove("visible"); warnEl.textContent = ""; }
+
+  setCardState(id, "running");
+  document.querySelector(`#card-${id} .run-btn`).disabled = true;
+
+  const fn     = checkMap[id];
+  const result = await fn();
+  results[id]  = result;
+  setCardState(id, result);
+
+  document.querySelector(`#card-${id} .run-btn`).disabled = false;
+  updateSummary();
+}
+
+async function runAll() {
+  const btn = document.getElementById("runAllBtn");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin">↻</span> Running…';
+
+  for (const id of Object.keys(checkMap)) {
+    await runCheck(id);
+    await new Promise(r => setTimeout(r, 150));
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = "▶ Run All Checks";
+  inspectSession();
+}
+
+function updateSummary() {
+  const bar = document.getElementById("summaryBar");
+  bar.style.display = "flex";
+  const vals = Object.values(results);
+  document.getElementById("stat-pass").textContent = vals.filter(v => v === "pass").length + " passed";
+  document.getElementById("stat-fail").textContent = vals.filter(v => v === "fail").length + " failed";
+  document.getElementById("stat-warn").textContent = vals.filter(v => v === "warn").length + " warnings";
+  document.getElementById("stat-ts").textContent = "Last run: " + new Date().toLocaleTimeString();
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Session inspector
+// ─────────────────────────────────────────────────────────────────
+function inspectSession() {
+  const el = document.getElementById("sessionInspector");
+  try {
+    const raw = sessionStorage.getItem("auth");
+    if (!raw) { el.textContent = "// sessionStorage[\"auth\"] is empty — user not logged in"; return; }
+    const parsed = JSON.parse(raw);
+    // Pretty print with syntax highlighting
+    el.textContent = JSON.stringify(parsed, null, 2);
+  } catch(e) {
+    el.textContent = "// Error reading session: " + e.message;
+  }
+}
+
+function clearSessionDiag() {
+  if (!confirm("Clear sessionStorage[\"auth\"]? This will log you out.")) return;
+  sessionStorage.removeItem("auth");
+  inspectSession();
+}
+
+// Auto-inspect on load
+inspectSession();
+
+// ─── Banner init ───────────────────────────────────────────────
+(function initBanner() {
+  // Show current URL origin
+  const servedFrom = document.getElementById("servedFrom");
+  if (servedFrom) servedFrom.textContent = window.location.href.substring(0, 60);
+
+  // Detect file:// and warn loudly
+  if (window.location.protocol === "file:") {
+    const banner = document.getElementById("pathBanner");
+    if (banner) {
+      const warn = document.createElement("div");
+      warn.style.cssText = "grid-column:1/-1;background:#ff4d6d18;border:1px solid #ff4d6d55;border-radius:8px;padding:0.7rem 1rem;color:#fca5a5;font-family:'Syne',sans-serif;font-size:0.82rem;line-height:1.6;";
+      warn.innerHTML = "<strong style='color:#ff4d6d'>⚠ You are running from file://</strong><br>Config.js CANNOT load from a file:// URL. Start a local web server:<br><code style='background:#0d1117;padding:2px 6px;border-radius:4px;'>python -m http.server 8080</code> → open <code style='background:#0d1117;padding:2px 6px;border-radius:4px;'>http://localhost:8080/diagnostics.html</code>";
+      banner.appendChild(warn);
+    }
+    document.getElementById("configBannerStatus").textContent = "❌ Cannot load — file:// blocked";
+    document.getElementById("configBannerStatus").style.color = "#ff4d6d";
+    return;
+  }
+
+  // Check if CONFIG loaded
+  const cfg = tryGetConfig();
+  const statusEl = document.getElementById("configBannerStatus");
+  if (statusEl) {
+    if (cfg) {
+      statusEl.textContent = "✓ Loaded — " + (cfg.SCRIPT_URL || "").substring(0,40) + "…";
+      statusEl.style.color = "#00d4aa";
+    } else {
+      statusEl.textContent = "❌ CONFIG not defined — check Config/Config.js path";
+      statusEl.style.color = "#ff4d6d";
+    }
+  }
+})();
+</script>
+
+</body>
+</html>

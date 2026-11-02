@@ -1,0 +1,965 @@
+/* =============================================================================
+   User/Style.css
+   Styles for Submit.html – the public post-submission form.
+   Sections:
+     1.  Reset & base
+     2.  Navigation bar
+     3.  Auth screens (login / OTP / register / project picker)
+     4.  Auth input & button components
+     5.  Registration – project rows
+     6.  Project picker screen
+     7.  Admin-choice screen
+     8.  Form container (main submit form)
+     9.  Form fields
+    10.  Submit button
+    11.  Status message
+    12.  Date picker
+    13.  Slot picker
+    14.  Media upload box
+    15.  Loading overlay
+    16.  Utility / notes
+    17.  Responsive
+   ============================================================================= */
+
+
+/* =============================================================================
+   1. Reset & base
+   ============================================================================= */
+
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: #f9f3e8;
+  padding: 0;
+  color: #1a1a1a;
+}
+
+.hidden {
+  display: none !important;
+}
+
+
+/* =============================================================================
+   2. Navigation bar  (#postLoginNav)
+   ============================================================================= */
+
+#postLoginNav {
+  display: none;                       /* shown by JS after login */
+  background: white;
+  border-bottom: 1px solid #f0e2d6;
+  padding: 0.6rem 1.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+#navUserName {
+  font-size: 0.85rem;
+  color: #6a4a3a;
+  font-weight: 600;
+}
+
+#navProjectBadge {
+  font-size: 0.73rem;
+  background: #fff0e3;
+  color: #b34e1a;
+  border-radius: 20px;
+  padding: 2px 10px;
+  font-weight: 700;
+}
+
+.nav-right {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+/* Switch Project button in nav */
+#navSwitchProjectBtn {
+  padding: 0.4rem 1rem;
+  border-radius: 2rem;
+  background: #f5ede6;
+  color: #7a5a4a;
+  border: 1.5px solid #e0cfc8;
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: background 0.2s;
+}
+
+#navSwitchProjectBtn:hover {
+  background: #ffe8d6;
+  border-color: #b34e1a;
+  color: #b34e1a;
+}
+
+/* Admin Panel link in nav */
+#navAdminBtn {
+  display: none;                       /* shown by JS for admin/owner only */
+  padding: 0.4rem 1rem;
+  border-radius: 2rem;
+  background: #b34e1a;
+  color: white;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-decoration: none;
+  align-items: center;
+  gap: 0.4rem;
+  transition: background 0.2s;
+}
+
+#navAdminBtn:hover {
+  background: #923d12;
+}
+
+/* Logout button in nav */
+#navLogoutBtn {
+  padding: 0.4rem 1rem;
+  border-radius: 2rem;
+  background: #f5ede6;
+  color: #7a5a4a;
+  border: 1.5px solid #e0cfc8;
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: background 0.2s;
+}
+
+#navLogoutBtn:hover {
+  background: #ffebee;
+  border-color: #c62828;
+  color: #c62828;
+}
+
+
+/* =============================================================================
+   3. Auth screens  (.login-screen)
+   ============================================================================= */
+
+.login-screen {
+  max-width: 500px;
+  margin: 2rem auto;
+  background: white;
+  border-radius: 2rem;
+  padding: 2rem;
+  box-shadow: 0 20px 35px rgba(0,0,0,0.1);
+}
+
+.login-screen h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #3f2a1f;
+  margin-bottom: 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.login-screen p {
+  color: #7a5a4a;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+/* OTP — "Didn't get the code?" row */
+.resend-otp {
+  font-size: 0.82rem;
+  color: #888;
+  margin-top: 0.8rem;
+  text-align: center;
+}
+
+.resend-otp a {
+  color: #b34e1a;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.resend-otp a:hover {
+  text-decoration: underline;
+}
+
+
+/* =============================================================================
+   4. Auth input & button components
+   ============================================================================= */
+
+.auth-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  margin: 0.8rem 0;
+  border: 1.5px solid #e2d4c8;
+  border-radius: 1rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  color: #2a1a0a;
+  background: #fefaf5;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.auth-input:focus {
+  outline: none;
+  border-color: #b34e1a;
+  box-shadow: 0 0 0 3px rgba(179,78,26,0.1);
+}
+
+/* Primary auth button — base */
+.auth-btn-primary {
+  width: 100%;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 2rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: background 0.2s, transform 0.15s;
+}
+
+.auth-btn-primary:hover {
+  transform: translateY(-1px);
+}
+
+/* WhatsApp green variant */
+.auth-btn-whatsapp {
+  background: #25d366;
+  color: white;
+}
+
+.auth-btn-whatsapp:hover {
+  background: #1ebe5d;
+}
+
+/* Orange/brand variant */
+.auth-btn-orange {
+  background: #b34e1a;
+  color: white;
+}
+
+.auth-btn-orange:hover {
+  background: #923d12;
+}
+
+/* Back / logout text button */
+.auth-back-btn {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 0.85rem;
+  cursor: pointer;
+  margin-top: 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0;
+  transition: color 0.2s;
+}
+
+.auth-back-btn:hover {
+  color: #b34e1a;
+}
+
+/* Labels inside auth screens */
+.auth-label {
+  font-weight: 600;
+  color: #4a2a1a;
+  font-size: 0.9rem;
+  display: block;
+  margin-top: 0.8rem;
+  margin-bottom: 0.3rem;
+}
+
+/* Confirm button margin */
+#registerConfirmBtn {
+  margin-top: 1rem;
+}
+
+/* "Add more projects" dashed button */
+#addProjectRowBtn {
+  background: none;
+  border: 1.5px dashed #b34e1a;
+  color: #b34e1a;
+  padding: 0.45rem 1.1rem;
+  border-radius: 2rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0.8rem;
+  transition: background 0.2s;
+}
+
+#addProjectRowBtn:hover {
+  background: #fff7ee;
+}
+
+
+/* =============================================================================
+   5. Registration – dynamic project rows
+   ============================================================================= */
+
+.project-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.8rem;
+  align-items: center;
+}
+
+.project-row select,
+.project-row input[type="text"] {
+  flex: 1;
+  padding: 0.6rem 0.8rem;
+  border: 1.5px solid #e2d4c8;
+  border-radius: 0.8rem;
+  font-family: inherit;
+  font-size: 0.88rem;
+  background: #fefaf5;
+  transition: border-color 0.2s;
+}
+
+.project-row select:focus,
+.project-row input[type="text"]:focus {
+  outline: none;
+  border-color: #b34e1a;
+}
+
+.removeProjBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: none;
+  background: #ffebee;
+  color: #c62828;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  padding: 0;
+  transition: filter 0.15s;
+}
+
+.removeProjBtn:hover {
+  filter: brightness(0.9);
+}
+
+
+/* =============================================================================
+   6. Project picker screen
+   ============================================================================= */
+
+.project-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  width: 100%;
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.8rem;
+  background: #fefaf5;
+  border: 1.5px solid #f0e2d6;
+  border-radius: 1rem;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #3f2a1f;
+  transition: background 0.2s, border-color 0.2s, transform 0.15s;
+  text-align: left;
+}
+
+.project-picker-item:hover {
+  background: #fff7ef;
+  border-color: #b34e1a;
+  transform: translateY(-2px);
+}
+
+.project-picker-item i {
+  color: #b34e1a;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+/* "Add another project" block inside picker */
+.picker-add-project-wrap {
+  background: #fefaf5;
+  border: 1.5px dashed #e2c9b0;
+  border-radius: 1.2rem;
+  padding: 0.9rem 1rem;
+  margin-top: 1.2rem;
+}
+
+.picker-add-project-wrap label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #7a5a4a;
+  display: block;
+  margin-bottom: 0.6rem;
+}
+
+.picker-add-project-fields {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.picker-add-project-fields select,
+.picker-add-project-fields input[type="text"] {
+  flex: 1;
+  min-width: 100px;
+  padding: 0.55rem 0.8rem;
+  border: 1.5px solid #e2d4c8;
+  border-radius: 0.8rem;
+  font-family: inherit;
+  font-size: 0.88rem;
+  background: white;
+  transition: border-color 0.2s;
+}
+
+.picker-add-project-fields select:focus,
+.picker-add-project-fields input[type="text"]:focus {
+  outline: none;
+  border-color: #b34e1a;
+}
+
+.picker-add-project-btn {
+  background: #b34e1a;
+  color: white;
+  border: none;
+  border-radius: 2rem;
+  padding: 0.55rem 1.1rem;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+
+.picker-add-project-btn:hover {
+  background: #923d12;
+}
+
+
+/* =============================================================================
+   7. Admin-choice screen  (#adminChoiceScreen)
+   ============================================================================= */
+
+#adminChoiceScreen {
+  max-width: 500px;
+  margin: 2rem auto;
+  background: white;
+  border-radius: 2rem;
+  padding: 2rem;
+  box-shadow: 0 20px 35px rgba(0,0,0,0.1);
+}
+
+#adminChoiceScreen h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #3f2a1f;
+  margin-bottom: 0.5rem;
+}
+
+#choiceLogoutBtn {
+  background: none;
+  border: none;
+  color: #888;
+  margin-top: 0.8rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0;
+}
+
+#choiceLogoutBtn:hover {
+  color: #c62828;
+}
+
+
+/* =============================================================================
+   8. Form container  (#mainSubmitForm)
+   ============================================================================= */
+
+.form-container {
+  max-width: 600px;
+  margin: 2rem auto;
+  background: white;
+  border-radius: 2rem;
+  padding: 2rem;
+  box-shadow: 0 20px 35px rgba(0,0,0,0.1);
+}
+
+.form-container h1 {
+  text-align: center;
+  color: #b34e1a;
+  margin-bottom: 1.5rem;
+  font-weight: 700;
+  font-size: 1.7rem;
+}
+
+
+/* =============================================================================
+   9. Form fields (inside main submit form only)
+   ============================================================================= */
+
+.form-container label {
+  font-weight: 600;
+  display: block;
+  margin-top: 1rem;
+  color: #4a2a1a;
+  font-size: 0.92rem;
+}
+
+.form-container input[type="text"],
+.form-container input[type="email"],
+.form-container textarea {
+  width: 100%;
+  padding: 0.7rem;
+  margin-top: 0.3rem;
+  border: 1.5px solid #e2d4c8;
+  border-radius: 1rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  background: #fefaf5;
+  transition: border-color 0.2s;
+}
+
+.form-container input[type="text"]:focus,
+.form-container input[type="email"]:focus,
+.form-container textarea:focus {
+  outline: none;
+  border-color: #b34e1a;
+}
+
+/* Project dropdown inside main form */
+.form-container select {
+  width: 100%;
+  padding: 0.7rem 1rem;
+  margin-top: 0.3rem;
+  border: 1.5px solid #e2d4c8;
+  border-radius: 1rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  appearance: none;
+  background: #fefaf5 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23b34e1a' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 1rem center;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.form-container select:focus {
+  outline: none;
+  border-color: #b34e1a;
+}
+
+
+/* =============================================================================
+   10. Submit button
+   ============================================================================= */
+
+button[type="submit"] {
+  background: #b34e1a;
+  color: white;
+  border: none;
+  padding: 0.85rem;
+  width: 100%;
+  border-radius: 2rem;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: inherit;
+  margin-top: 1.5rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: background 0.2s, transform 0.15s;
+}
+
+button[type="submit"]:hover {
+  background: #923d12;
+  transform: translateY(-1px);
+}
+
+
+/* =============================================================================
+   11. Status message
+   ============================================================================= */
+
+.message {
+  margin-top: 1rem;
+  text-align: center;
+  padding: 0.5rem 1rem;
+  border-radius: 1rem;
+  font-weight: 500;
+  min-height: 2rem;
+}
+
+.error   { background: #ffebee; color: #c62828; }
+.success { background: #e8f5e9; color: #2e7d32; }
+
+
+/* =============================================================================
+   12. Date picker  (#datePicker / .date-btn)
+   ============================================================================= */
+
+#datePicker {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 0.6rem;
+  margin: 0.5rem 0 1rem;
+  padding-bottom: 0.5rem;
+  scrollbar-width: thin;
+  scrollbar-color: #e2c9b8 transparent;
+}
+
+.date-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: 70px;
+  padding: 0.4rem 0.2rem 0.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 1rem;
+  transition: background 0.15s;
+}
+
+.date-btn:hover { background: rgba(179,78,26,0.06); }
+
+.date-btn .month-name {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #b34e1a;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+
+.date-btn .day-num {
+  width: 3.2rem;
+  height: 3.2rem;
+  border-radius: 50%;
+  background: #f0e7df;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: #4a2a1a;
+  transition: background 0.2s, color 0.2s, transform 0.2s;
+  line-height: 1;
+}
+
+.date-btn .day-name {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: #7a5a4a;
+  margin-top: 5px;
+}
+
+.date-btn.today .day-num,
+.date-btn.selected .day-num {
+  background: #b34e1a;
+  color: white;
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(179,78,26,0.4);
+}
+
+.date-btn.today .month-name,
+.date-btn.selected .month-name,
+.date-btn.today .day-name,
+.date-btn.selected .day-name { color: #b34e1a; font-weight: 700; }
+
+
+/* =============================================================================
+   13. Slot picker  (#slotPicker / .slot-btn)
+   ============================================================================= */
+
+#slotPicker {
+  margin: 0.8rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.slot-group-label {
+  width: 100%;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #b34e1a;
+  border-left: 3px solid #b34e1a;
+  padding-left: 0.7rem;
+  margin: 0.8rem 0 0.5rem;
+}
+
+.slot-group-label:first-child { margin-top: 0; }
+
+.slot-btn {
+  background: #fef7f0;
+  border: 1.5px solid #ffe0c4;
+  border-radius: 2rem;
+  padding: 0.5rem 1.2rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s, box-shadow 0.15s;
+  color: #b34e1a;
+  font-size: 0.9rem;
+  font-family: inherit;
+  user-select: none;
+}
+
+.slot-btn:hover:not(:disabled) { background: #ffd8b5; transform: translateY(-2px); }
+
+.slot-btn.selected {
+  background: #b34e1a;
+  color: white;
+  border-color: #b34e1a;
+  box-shadow: 0 4px 10px rgba(179,78,26,0.3);
+}
+
+.slot-btn:disabled {
+  background: #e8e4e0;
+  color: #aaa;
+  cursor: not-allowed;
+  text-decoration: line-through;
+  border-color: #ddd;
+  transform: none;
+}
+
+
+/* =============================================================================
+   14. Media upload box  (.media-upload-box)
+   ============================================================================= */
+
+.media-upload-box {
+  position: relative;
+  border: 2px dashed #e2c9b0;
+  border-radius: 1.2rem;
+  background: #fefaf5;
+  transition: border-color 0.2s, background 0.2s;
+  overflow: hidden;
+  margin-top: 0.4rem;
+}
+
+.media-upload-box.drag-over {
+  border-color: #b34e1a;
+  background: #fff7ee;
+}
+
+.media-upload-box input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+}
+
+.media-upload-ui {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 2rem 1rem;
+  pointer-events: none;
+}
+
+.media-upload-ui i      { font-size: 2.2rem; color: #c07040; }
+.media-upload-title     { font-weight: 700; font-size: 1rem; color: #b34e1a; }
+.media-upload-hint      { font-size: 0.82rem; color: #9a7a6a; }
+.media-upload-limits    { font-size: 0.75rem; color: #bbb; margin-top: 4px; }
+
+.media-upload-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+}
+
+.media-upload-filename {
+  font-size: 0.82rem;
+  color: #7a5a4a;
+  word-break: break-all;
+  text-align: center;
+}
+
+.media-clear-btn {
+  background: #ffebee;
+  border: 1.5px solid #ef9a9a;
+  color: #c62828;
+  padding: 0.3rem 0.9rem;
+  border-radius: 2rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  width: auto;
+  margin-top: 0;
+  transition: filter 0.15s;
+}
+
+.media-clear-btn:hover {
+  filter: brightness(0.94);
+}
+
+.video-upload-note {
+  font-size: 0.8rem;
+  color: #9a7a6a;
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+
+/* =============================================================================
+   15. Loading overlay
+   ============================================================================= */
+
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(3px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.3s, visibility 0.3s;
+}
+
+.loading-overlay.active {
+  visibility: visible;
+  opacity: 1;
+}
+
+.loading-container {
+  text-align: center;
+}
+
+.spinner {
+  width: 60px;
+  height: 60px;
+  border: 6px solid rgba(255,255,255,0.3);
+  border-top-color: #b34e1a;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-text {
+  color: white;
+  margin-top: 20px;
+  font-weight: 500;
+}
+
+
+/* =============================================================================
+   16. Utility / notes
+   ============================================================================= */
+
+.slot-note {
+  font-size: 0.8rem;
+  color: #888;
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.admin-link {
+  color: #495057;
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+.admin-link:hover {
+  color: #b34e1a;
+}
+
+.auto-delete-notice {
+  font-size: 0.78rem;
+  color: #aaa;
+  text-align: center;
+  margin-top: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+
+/* =============================================================================
+   17. Responsive
+   ============================================================================= */
+
+@media (max-width: 650px) {
+  body { padding: 0; }
+
+  .login-screen,
+  .form-container,
+  #adminChoiceScreen {
+    margin: 1rem;
+    padding: 1.5rem;
+    border-radius: 1.5rem;
+  }
+
+  .form-container h1 { font-size: 1.4rem; }
+  .slot-buttons { gap: 0.6rem; }
+  .picker-add-project-fields { flex-direction: column; }
+  .picker-add-project-btn { width: 100%; justify-content: center; }
+
+  #postLoginNav {
+    padding: 0.5rem 1rem;
+  }
+
+  .nav-right { gap: 0.4rem; }
+
+  #navSwitchProjectBtn,
+  #navLogoutBtn {
+    font-size: 0.72rem;
+    padding: 0.35rem 0.7rem;
+  }
+}

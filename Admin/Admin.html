@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+  <script>
+  (function(){
+    var s = sessionStorage.getItem("auth");
+    if (!s) { location.replace("../User/Submit.html"); return; }
+    try {
+      var a = JSON.parse(s);
+      if (a.role !== "admin" && a.role !== "owner") location.replace("../User/Submit.html");
+    } catch(e) { location.replace("../User/Submit.html"); }
+  })();
+  </script>
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>Admin | Time Slot Scheduler</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="Style.css">
+  <script src="../Config/Config.js"></script>
+
+</head>
+<body>
+
+<div class="container">
+
+  <div class="admin-header">
+    <h1><i class="fas fa-calendar-alt"></i> Time Slot Admin</h1>
+  <div style="display:flex; gap:0.6rem; align-items:center; margin-top:0.5rem;">
+    <span id="adminUserBadge" style="font-size:0.8rem; color:#8a6a5a; font-weight:600;"></span>
+    <button id="adminLogoutBtn" style="padding:0.4rem 1rem; border-radius:2rem;
+      background:#ffebee; color:#c62828; border:1.5px solid #ef9a9a;
+      font-size:0.8rem; font-weight:600; cursor:pointer;">
+      <i class="fas fa-sign-out-alt"></i> Logout
+    </button>
+  </div>
+
+  <!-- Owner-only tools panel — hidden for admins -->
+  <div id="ownerToolsPanel" style="display:none; background:#fff8f0; border:1.5px solid #ffd2aa;
+      border-radius:1.2rem; padding:1rem 1.4rem; margin:1rem 0; font-size:0.85rem;">
+    <strong style="color:#b34e1a;"><i class="fas fa-crown"></i> Owner Tools</strong>
+    <div style="margin-top:0.8rem; display:flex; flex-wrap:wrap; gap:0.6rem; align-items:center;">
+      <label style="font-weight:600; color:#6a4a3a;">Admin whitelist (emails):</label>
+      <input type="text" id="ownerWhitelistInput" placeholder="name@gmail.com, other@gmail.com"
+            style="flex:1; min-width:220px; padding:0.4rem 0.8rem; border-radius:2rem;
+                    border:1px solid #e2d4c8; font-size:0.83rem;">
+      <button id="ownerSaveWhitelistBtn" style="background:#b34e1a; color:white; padding:0.4rem 1rem;
+              border-radius:2rem; border:none; font-weight:600; cursor:pointer; font-size:0.83rem;">
+        Save
+      </button>
+    </div>
+    <div style="margin-top:0.8rem; display:flex; gap:0.8rem; flex-wrap:wrap;" id="ownerSheetLinks">
+      <!-- Sheet links injected by JS -->
+    </div>
+    <div style="margin-top:0.8rem; display:flex; gap:0.6rem; flex-wrap:wrap; align-items:center;">
+      <a href="../diagnostics.html" target="_blank"
+         style="display:inline-flex;align-items:center;gap:0.4rem;padding:0.4rem 1rem;
+                border-radius:2rem;background:#e8f4fd;color:#1565c0;border:1.5px solid #90caf9;
+                font-weight:600;font-size:0.82rem;text-decoration:none;">
+        <i class="fas fa-stethoscope"></i> Diagnostics
+      </a>
+      <button id="ownerPauseSystemBtn"
+              style="display:inline-flex;align-items:center;gap:0.4rem;padding:0.4rem 1rem;
+                     border-radius:2rem;background:#ffebee;color:#c62828;border:1.5px solid #ef9a9a;
+                     font-weight:600;font-size:0.82rem;cursor:pointer;">
+        <i class="fas fa-power-off"></i> <span id="pauseBtnLabel">Pause System</span>
+      </button>
+    </div>
+  </div>
+    <div class="current-date" id="adminCurrentDate"></div>
+  </div>
+
+  <!-- Overdue manual reminders -->
+  <div id="overdueReminders" class="overdue-reminders-bar" style="display:none;"></div>
+
+  <div class="admin-controls">
+    <label for="adminDatePicker"><i class="fas fa-calendar-day"></i> View Date:</label>
+    <input type="date" id="adminDatePicker" aria-label="Select date to view">
+    <button id="refreshBtn"><i class="fas fa-sync-alt"></i> Refresh</button>
+    <button id="manageProjectsBtn" class="projects-btn"><i class="fas fa-folder"></i> Projects</button>
+    <a href="../User/Submit.html" style="padding:0.5rem 1.1rem; border-radius:2rem;
+      background:#f5ede6; color:#7a5a4a; border:1.5px solid #e0cfc8;
+      font-weight:600; font-size:0.85rem; text-decoration:none;
+      display:inline-flex; align-items:center; gap:0.4rem;">
+      <i class="fas fa-arrow-left"></i> Submit Page
+    </a>
+  </div>
+
+  <div id="scheduleGrid" class="schedule-grid" aria-live="polite">Loading…</div>
+
+</div>
+
+<!-- Emergency footer -->
+<div class="emergency-footer">
+  <i class="fas fa-exclamation-circle"></i>
+  Emergency? Contact admin via
+  <a href="https://wa.me/94767633875" target="_blank" rel="noopener">
+    <i class="fab fa-whatsapp"></i> WhatsApp
+  </a>
+</div>
+
+
+<!-- Post Details Modal -->
+<div id="postModal" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modal-content">
+    <div id="modalBody"></div>
+    <div class="button-group" id="modalButtonGroup"></div>
+  </div>
+</div>
+
+
+<!-- Edit Post Modal -->
+<div id="editModal" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modal-content" style="max-width:600px;">
+    <h3><i class="fas fa-pen-alt"></i> Edit Post</h3>
+    <form id="editForm" novalidate>
+      <div class="modal-field">
+        <label for="editContent"><i class="fas fa-align-left"></i> Content</label>
+        <textarea id="editContent" rows="5" class="edit-input" required></textarea>
+      </div>
+      <div class="modal-field">
+        <label for="editMediaFile"><i class="fas fa-image"></i> Media (upload new file)</label>
+        <input type="file" id="editMediaFile" accept="image/jpeg,image/png,image/gif,image/webp">
+        <div id="mediaPreview" style="margin-top:10px;max-width:100%;"></div>
+        <small>Uploading a new file replaces the current media.</small>
+      </div>
+      <div class="button-group" style="justify-content:flex-end;">
+        <button type="button" id="cancelEditBtn" class="close">Cancel</button>
+        <button type="submit" class="approve"><i class="fas fa-save"></i> Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- Change Time Slot Modal -->
+<div id="changeSlotModal" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modal-content" style="max-width:480px;">
+    <h3><i class="fas fa-exchange-alt"></i> Change Time Slot</h3>
+    <div class="modal-field">
+      <label>Current Date</label>
+      <input type="text" id="currentSlotDate" class="edit-input" disabled>
+    </div>
+    <div class="modal-field">
+      <label>Current Slot</label>
+      <input type="text" id="currentSlotValue" class="edit-input" disabled>
+    </div>
+    <div class="modal-field">
+      <label for="newSlotDate">New Date</label>
+      <input type="date" id="newSlotDate" class="edit-input">
+    </div>
+    <div class="modal-field">
+      <label for="newSlotSelect">New Time Slot</label>
+      <select id="newSlotSelect" class="edit-input">
+        <option value="">-- Select a slot --</option>
+      </select>
+      <small id="slotAvailabilityNote"></small>
+    </div>
+    <div class="button-group" style="justify-content:flex-end;">
+      <button type="button" id="cancelChangeSlotBtn" class="close">Cancel</button>
+      <button type="button" id="confirmChangeSlotBtn" class="approve">Change Slot</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Buffer/Social Modal (legacy) -->
+<div id="bufferModal" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modal-content" style="max-width:560px;">
+    <h3><i class="fas fa-globe"></i> Publish to Social Media</h3>
+    <p>Select platforms to publish this post.</p>
+    <div id="bufferProfilesList" class="profile-checkbox-list"></div>
+    <div class="button-group" style="justify-content:flex-end;">
+      <button type="button" id="cancelBufferBtn" class="close">Cancel</button>
+      <button type="button" id="confirmBufferBtn" class="approve">
+        <i class="fas fa-share-alt"></i> Publish
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ================================================================
+     REQ 5 & 6: Combined Share Modal
+     ─ WhatsApp section first
+       · target list (checkboxes)
+       · manual number input
+       · "Share only on WhatsApp" button
+     ─ Social Media section second
+       · profiles list (YouTube shows title+category below when checked)
+       · "Share only on Social Media" button
+     ─ Footer: Cancel | Publish  +  "share in all media" hint
+     ================================================================ -->
+<div id="combinedShareModal" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modal-content">
+
+    <div class="csm-header">
+      <div class="csm-header-icon"><i class="fas fa-share-alt"></i></div>
+      <div>
+        <h3>Share Post</h3>
+        <p>Choose where to publish</p>
+      </div>
+    </div>
+
+    <div class="csm-body">
+
+      <!-- Social Media -->
+      <div class="csm-section-label sm-label">
+        <i class="fas fa-globe"></i> Social Media
+      </div>
+      <!-- csSmList is populated by JS; YouTube extras are injected inline -->
+      <div id="csSmList">
+        <p style="color:#888;font-size:0.82rem;text-align:center;padding:0.4rem;">Loading…</p>
+      </div>
+      <div class="csm-section-actions">
+        <button class="csm-only-btn sm-only" id="csSmOnlyBtn">
+          <i class="fas fa-globe"></i> Share only on Social Media
+        </button>
+      </div>
+
+      <div class="csm-count" id="csCount"></div>
+
+    </div><!-- /csm-body -->
+
+    <div class="csm-footer">
+      <div class="csm-footer-btns">
+        <button class="csm-cancel" id="csCancelBtn">
+          <i class="fas fa-times"></i> Cancel
+        </button>
+        <button class="csm-publish-all" id="csPublishAllBtn">
+          <i class="fas fa-paper-plane"></i> Publish
+        </button>
+      </div>
+      <div class="csm-hint">share in all media</div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- Projects Management Modal -->
+<div id="projectsModal" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modal-content" style="max-width:520px;">
+    <h3><i class="fas fa-folder-open"></i> Manage Projects</h3>
+    <p style="font-size:0.85rem;color:#8a6a5a;margin-bottom:1rem;">
+      Projects appear in the submit form dropdown. Toggle between Ongoing and To Be.
+    </p>
+    <div id="projectsList" class="projects-list"></div>
+    <div class="projects-add-form">
+      <h4><i class="fas fa-plus-circle"></i> Add New Project</h4>
+      <form id="addProjectForm" novalidate>
+        <div class="modal-field">
+          <label for="newProjectName">Project Name</label>
+          <input type="text" id="newProjectName" class="edit-input" placeholder="e.g. Summer Campaign" required>
+        </div>
+        <div class="modal-field" style="display:flex;gap:1rem;align-items:flex-end;">
+          <div style="flex:1;">
+            <label for="newProjectStatus">Status</label>
+            <select id="newProjectStatus" class="edit-input">
+              <option value="ongoing">Ongoing</option>
+              <option value="tobe">To Be</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+          <div>
+            <label for="newProjectColor">Color</label>
+            <input type="color" id="newProjectColor" value="#b34e1a"
+                   style="height:38px;border-radius:0.5rem;border:1px solid #ddd;cursor:pointer;">
+          </div>
+        </div>
+        <div class="button-group" style="justify-content:flex-end;margin-top:0.5rem;">
+          <button type="submit" class="approve"><i class="fas fa-plus"></i> Add Project</button>
+        </div>
+      </form>
+    </div>
+    <div class="button-group" style="justify-content:flex-end;">
+      <button type="button" id="cancelProjectsBtn" class="close">Close</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Loading overlay -->
+<div id="loadingOverlay" class="loading-overlay" role="status" aria-label="Processing">
+  <div class="loading-container">
+    <div class="spinner"></div>
+    <div class="loading-text">Processing…</div>
+  </div>
+</div>
+
+
+<script src="Script.js"></script>
+</body>
+</html>
