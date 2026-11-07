@@ -2,7 +2,7 @@
  * Config.js – central configuration (social-media only)
  */
 const CONFIG = {
-  SCRIPT_URL: "https://script.google.com/macros/s/AKfycbxVgXF-ADOdfPelhSe8BWXpRAXd3xjuVqrc8mhv73ctuHhyeEMVUycqwi_7cHxvnCvaPg/exec",
+  SCRIPT_URL: "https://script.google.com/macros/s/AKfycbw0g5YuefH5Jv1nGLX6eNniUw6tss7ksl8NQVg1toHhQTPJShD9xMDJgpzUgOBvJZQL/exec",
   CLOUDINARY: {
     UPLOAD_URL: "https://api.cloudinary.com/v1_1/dfxbg9cr1/upload",
     UPLOAD_PRESET: "unsigned_upload",
