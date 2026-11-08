@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>
+  // Works from the project root, or from inside the User/ or Admin/ folder
+  var P = (function(){ var d = location.pathname.split("/"); var f = d[d.length - 2]; return (f === "User" || f === "Admin") ? "../" : ""; })();
+  // Owner only
+  (function(){
+    var s = sessionStorage.getItem("auth");
+    if (!s) { location.replace(P + "User/Submit.html"); return; }
+    try {
+      var a = JSON.parse(s);
+      if (a.role !== "owner") location.replace(P + (a.role === "admin" ? "Admin/Admin.html" : "User/Submit.html"));
+    } catch(e) { location.replace(P + "User/Submit.html"); }
+  })();
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diagnostics | Time Slot Scheduler</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <script>document.write('<script src="' + P + 'Config/Config.js"><\/script>');</script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #f5f0e8; color: #3f2a1f; min-height: 100vh; padding: 1rem 0.8rem 3rem; }
+    .wrap { max-width: 760px; margin: 0 auto; }
+    .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.8rem; }
+    .back { color: #7a5a4a; text-decoration: none; font-weight: 600; font-size: 0.88rem; display: inline-flex; gap: 0.4rem; align-items: center; }
+    h1 { font-size: 1.7rem; color: #b34e1a; display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.2rem; }
+    .sub { color: #8a6a5a; font-size: 0.86rem; margin-bottom: 1rem; }
+    .actions { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    button.act { border: none; border-radius: 2rem; padding: 0.75rem 1.4rem; font: inherit; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; }
+    button.act.primary { background: #b34e1a; color: #fff; }
+    button.act.ghost { background: #fff; color: #7a5a4a; border: 1.5px solid #e0cfc8; }
+    button.act:disabled { opacity: 0.55; cursor: wait; }
+
+    .summary { border-radius: 1.2rem; padding: 1rem 1.1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.9rem; background: #fff; border: 2px solid #e2d4c8; }
+    .summary .big { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 1.5rem; flex-shrink: 0; background: #9aa4af; }
+    .summary.ok    { border-color: #2e9e5b; } .summary.ok .big    { background: #2e9e5b; }
+    .summary.warn  { border-color: #e0a100; } .summary.warn .big  { background: #e0a100; }
+    .summary.error { border-color: #d64545; } .summary.error .big { background: #d64545; }
+    .summary-title { font-weight: 800; font-size: 1.1rem; }
+    .summary-sub { font-size: 0.84rem; color: #6a4a3a; margin-top: 2px; }
+
+    .group { background: #fff; border-radius: 1.2rem; border: 1.5px solid #f0e2d6; margin-bottom: 0.9rem; overflow: hidden; }
+    .group h2 { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.07em; color: #8a6a5a; padding: 0.7rem 1rem; background: #fbf5ef; display: flex; align-items: center; gap: 0.5rem; }
+    .row { display: flex; gap: 0.7rem; padding: 0.7rem 1rem; border-top: 1px solid #f5ece4; align-items: flex-start; }
+    .row .ic { width: 1.4rem; text-align: center; margin-top: 2px; flex-shrink: 0; }
+    .row.ok .ic { color: #2e9e5b; } .row.warn .ic { color: #e0a100; } .row.error .ic { color: #d64545; } .row.run .ic { color: #9aa4af; }
+    .row .name { font-weight: 700; font-size: 0.9rem; }
+    .row .detail { font-size: 0.82rem; color: #6a4a3a; margin-top: 2px; overflow-wrap: anywhere; }
+    .row.error { background: #fff6f6; } .row.warn { background: #fffaf0; }
+    .empty { text-align: center; color: #8a6a5a; padding: 2rem 1rem; font-size: 0.9rem; }
+    .foot { text-align: center; color: #9a8c7f; font-size: 0.76rem; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="back" id="backLink" href="Admin/Admin.html"><i class="fas fa-arrow-left"></i> Back to Admin Panel</a>
+  </div>
+  <h1><i class="fas fa-stethoscope"></i> Diagnostics</h1>
+  <p class="sub">Checks that the website, the Apps Script backend, the Google Sheet, uploads and social media connections are working.</p>
+
+  <div class="actions">
+    <button class="act primary" id="fullBtn"><i class="fas fa-search-plus"></i> Run full scan</button>
+    <button class="act ghost" id="quickBtn"><i class="fas fa-bolt"></i> Quick scan</button>
+  </div>
+
+  <div id="summary" class="summary"><div class="big"><i class="fas fa-question"></i></div>
+    <div><div class="summary-title">Not scanned yet</div><div class="summary-sub">Press "Run full scan" to check everything.</div></div></div>
+
+  <div id="results"><div class="empty">Results appear here.</div></div>
+  <p class="foot">The full scan writes one short test row to a hidden sheet tab (_diagnostics) and removes it again, and uploads and deletes a 1-pixel test image.</p>
+</div>
+
+<script>
+document.getElementById("backLink").href = P + "Admin/Admin.html";
+const SESSION = (function () { try { return JSON.parse(sessionStorage.getItem("auth")) || {}; } catch (e) { return {}; } })();
+const GROUP_ICONS = { "Connection": "fa-plug", "Uploads": "fa-cloud-upload-alt", "Browser": "fa-desktop", "Settings": "fa-sliders-h",
+  "System": "fa-server", "Sheets": "fa-table", "Data": "fa-database", "Users": "fa-users", "Social media": "fa-globe", "Storage": "fa-hdd" };
+const GROUP_ORDER = ["Connection", "Settings", "System", "Sheets", "Data", "Users", "Social media", "Storage", "Uploads", "Browser"];
+let results = [];
+let running = false;
+
+function esc(s) { return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function add(group, name, level, detail) { results.push({ group, name, level, detail: detail || "" }); render(); }
+
+function render(finished) {
+  const box = document.getElementById("results");
+  if (!results.length) { box.innerHTML = '<div class="empty">Results appear here.</div>'; return; }
+  const groups = {};
+  results.forEach(r => (groups[r.group] = groups[r.group] || []).push(r));
+  const names = Object.keys(groups).sort((a, b) => (GROUP_ORDER.indexOf(a) + 1 || 99) - (GROUP_ORDER.indexOf(b) + 1 || 99));
+  box.innerHTML = names.map(g => `
+    <div class="group">
+      <h2><i class="fas ${GROUP_ICONS[g] || "fa-cog"}"></i> ${esc(g)}</h2>
+      ${groups[g].map(r => `
+        <div class="row ${r.level}">
+          <div class="ic"><i class="fas ${r.level === "ok" ? "fa-check-circle" : r.level === "warn" ? "fa-exclamation-triangle" : r.level === "error" ? "fa-times-circle" : "fa-circle-notch fa-spin"}"></i></div>
+          <div><div class="name">${esc(r.name)}</div>${r.detail ? `<div class="detail">${esc(r.detail)}</div>` : ""}</div>
+        </div>`).join("")}
+    </div>`).join("");
+
+  const done = results.filter(r => r.level !== "run");
+  const err = done.filter(r => r.level === "error").length, warn = done.filter(r => r.level === "warn").length, ok = done.filter(r => r.level === "ok").length;
+  const s = document.getElementById("summary");
+  const level = err ? "error" : warn ? "warn" : (done.length ? "ok" : "");
+  s.className = "summary " + level;
+  s.querySelector(".big").innerHTML = '<i class="fas ' + (err ? "fa-times" : warn ? "fa-exclamation" : done.length ? "fa-check" : "fa-question") + '"></i>';
+  s.querySelector(".summary-title").textContent = !done.length ? "Scanning…" :
+    err ? "A critical problem was found" : warn ? "Working, but with warnings" : "Everything is working";
+  s.querySelector(".summary-sub").textContent = `${ok} OK · ${warn} warning${warn === 1 ? "" : "s"} · ${err} problem${err === 1 ? "" : "s"}` + (finished ? "" : " (scanning…)");
+}
+
+async function timed(fn) { const t = performance.now(); const v = await fn(); return { v, ms: Math.round(performance.now() - t) }; }
+async function post(payload) {
+  const r = await fetch(CONFIG.SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(Object.assign({ token: SESSION.token }, payload)) });
+  return r.json();
+}
+
+// ── Checks that run in this browser ─────────────────────────────────────────
+async function connectionChecks() {
+  // 1) read posts (needs login)
+  try {
+    const { v, ms } = await timed(() => post({ action: "getPosts" }));
+    if (v.success && Array.isArray(v.posts)) add("Connection", "Read posts", ms > 8000 ? "warn" : "ok", v.posts.length + " posts loaded in " + ms + " ms.");
+    else add("Connection", "Read posts", "error", v.error || "The server did not return the post list.");
+  } catch (e) { add("Connection", "Read posts", "error", "Cannot reach the Apps Script URL (" + e.message + ")."); }
+
+  // 2) projects + roles (GET)
+  try { const p = await (await fetch(CONFIG.SCRIPT_URL + "?action=getProjects")).json();
+    add("Connection", "Read projects (GET)", Array.isArray(p) ? "ok" : "error", Array.isArray(p) ? p.length + " projects." : "Unexpected answer."); }
+  catch (e) { add("Connection", "Read projects (GET)", "error", e.message); }
+  try { const r = await (await fetch(CONFIG.SCRIPT_URL + "?action=getRoles")).json();
+    add("Connection", "Read role lists (GET)", r.projectRoles ? "ok" : "error", r.projectRoles ? r.projectRoles.length + " project roles, " + r.clubRoles.length + " club roles." : "Unexpected answer."); }
+  catch (e) { add("Connection", "Read role lists (GET)", "error", e.message); }
+
+  // 3) POST round trip with the login token
+  try {
+    const { v, ms } = await timed(() => post({ action: "getMyPosts" }));
+    add("Connection", "Send and receive (POST) with your login", v.success ? "ok" : "error",
+        v.success ? "Round trip took " + ms + " ms." : (/unauthor|log in/i.test(v.error || "") ? "Your login expired. Log out and log in again." : (v.error || "The server refused the request.")));
+  } catch (e) { add("Connection", "Send and receive (POST) with your login", "error", e.message); }
+
+  // 4) pause state
+  try { const d = await (await fetch(CONFIG.SCRIPT_URL + "?action=getSystemPaused")).json();
+    add("Connection", "Pause switch readable", "ok", d.paused ? "System is currently PAUSED." : "System is running."); }
+  catch (e) { add("Connection", "Pause switch readable", "error", e.message); }
+}
+
+async function uploadTest() {
+  add("Uploads", "Cloudinary upload test", "run", "Uploading a 1-pixel test image…");
+  const idx = results.length - 1;
+  const set = (level, detail) => { results[idx] = { group: "Uploads", name: "Cloudinary upload test", level, detail }; render(); };
+  try {
+    const bin = atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==");
+    const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    const fd = new FormData();
+    fd.append("file", new Blob([arr], { type: "image/png" }), "diagnostic-test.png");
+    fd.append("upload_preset", CONFIG.CLOUDINARY.UPLOAD_PRESET);
+    const { v, ms } = await timed(async () => (await fetch(CONFIG.CLOUDINARY.UPLOAD_URL, { method: "POST", body: fd })).json());
+    if (!v.secure_url) { set("error", "Cloudinary refused the upload: " + ((v.error && v.error.message) || "unknown reason") + ". Check the upload preset name."); return; }
+    set("ok", "Uploaded in " + ms + " ms.");
+    // clean up the test file
+    try {
+      const del = await post({ action: "diagDeleteAsset", publicId: v.public_id });
+      add("Uploads", "Delete test file", del.success ? "ok" : "warn", del.success ? "The server removed the test image from Cloudinary." : "Could not delete the test image (" + (del.error || "unknown") + "). You can remove it in Cloudinary by hand.");
+    } catch (e) { add("Uploads", "Delete test file", "warn", "Could not reach the server to delete the test image."); }
+  } catch (e) { set("error", "Upload failed (" + e.message + "). Check your internet and the Cloudinary settings in Config.js."); }
+}
+
+function browserChecks(serverOffset) {
+  try { sessionStorage.setItem("_d", "1"); sessionStorage.removeItem("_d"); add("Browser", "Browser storage", "ok", "Working (needed to stay logged in)."); }
+  catch (e) { add("Browser", "Browser storage", "error", "Blocked. Logins will not work in private or restricted mode."); }
+  const hasCfg = CONFIG.SCRIPT_URL && CONFIG.CLOUDINARY && CONFIG.CLOUDINARY.UPLOAD_PRESET && CONFIG.CLOUDINARY.UPLOAD_URL;
+  add("Browser", "Config.js", hasCfg ? "ok" : "error", hasCfg ? "Script URL and Cloudinary settings present." : "Config.js is missing the Script URL or Cloudinary settings.");
+  if (serverOffset !== undefined) {
+    const mine = -new Date().getTimezoneOffset() / 60;
+    add("Browser", "Time zone matches the server", Math.abs(mine - serverOffset) < 0.01 ? "ok" : "warn",
+        "This device is UTC" + (mine >= 0 ? "+" : "") + mine + ", the server uses UTC" + (serverOffset >= 0 ? "+" : "") + serverOffset +
+        (Math.abs(mine - serverOffset) < 0.01 ? "." : ". Slot times can look wrong if these differ."));
+  }
+}
+
+// ── Scans ────────────────────────────────────────────────────────────────────
+async function runScan(full) {
+  if (running) return;
+  running = true;
+  ["fullBtn", "quickBtn"].forEach(id => document.getElementById(id).disabled = true);
+  results = []; render();
+  const t0 = performance.now();
+  let serverOffset;
+  try {
+    await connectionChecks();
+    try {
+      const r = await post({ action: full ? "fullScan" : "quickScan" });
+      if (r.success) { r.results.forEach(x => results.push(x)); serverOffset = r.serverOffset; render(); }
+      else add("System", full ? "Full server scan" : "Quick server scan", "error", r.error || "The server refused the scan.");
+    } catch (e) { add("System", "Server scan", "error", "Could not reach the server: " + e.message); }
+    if (full) await uploadTest();
+    browserChecks(serverOffset);
+  } finally {
+    render(true);
+    document.querySelector(".summary-sub").textContent += " · took " + ((performance.now() - t0) / 1000).toFixed(1) + " s";
+    ["fullBtn", "quickBtn"].forEach(id => document.getElementById(id).disabled = false);
+    running = false;
+  }
+}
+document.getElementById("fullBtn").addEventListener("click", () => runScan(true));
+document.getElementById("quickBtn").addEventListener("click", () => runScan(false));
+</script>
+</body>
+</html>
